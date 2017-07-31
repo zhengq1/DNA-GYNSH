@@ -15,11 +15,11 @@ type StateUpdate struct {
 	Updater   *crypto.PubKey
 }
 
-func (su *StateUpdate) Data() []byte {
+func (su *StateUpdate) Data(version byte) []byte {
 	return []byte{0}
 }
 
-func (su *StateUpdate) Serialize(w io.Writer) error {
+func (su *StateUpdate) Serialize(w io.Writer, version byte) error {
 	err := serialization.WriteVarBytes(w, su.Namespace)
 	if err != nil {
 		return NewDetailErr(err, ErrNoCode, "[StateUpdate], Namespace serialize failed.")
@@ -40,7 +40,7 @@ func (su *StateUpdate) Serialize(w io.Writer) error {
 	return nil
 }
 
-func (su *StateUpdate) Deserialize(r io.Reader) error {
+func (su *StateUpdate) Deserialize(r io.Reader, version byte) error {
 	var err error
 
 	su.Namespace, err = serialization.ReadVarBytes(r)

@@ -193,9 +193,6 @@ func CheckTransactionBalance(Tx *tx.Transaction) error {
 		}
 	}
 	if Tx.TxType == tx.IssueAsset || Tx.TxType == tx.DestroyUTXO {
-		if len(Tx.UTXOInputs) > 0 {
-			return errors.New("Invalide Issue transaction.")
-		}
 		return nil
 	}
 	results, err := Tx.GetTransactionResults()
@@ -244,6 +241,9 @@ func CheckTransactionPayload(Tx *tx.Transaction) error {
 			return errors.New("[CheckTransactionPayload],invalid asset value,out of precise.")
 		}
 	case *payload.IssueAsset:
+		if len(Tx.UTXOInputs) > 0 {
+			return errors.New("Invalide Issue transaction.")
+		}
 	case *payload.TransferAsset:
 	case *payload.BookKeeping:
 	case *payload.PrivacyPayload:

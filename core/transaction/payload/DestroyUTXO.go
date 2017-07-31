@@ -5,16 +5,16 @@ import "io"
 type DestroyUTXO struct {
 }
 
-func (a *DestroyUTXO) Data() []byte {
+func (a *DestroyUTXO) Data(version byte) []byte {
 	//TODO: implement TransferAsset.Data()
 	return []byte{0}
 
 }
 
-func (a *DestroyUTXO) Serialize(w io.Writer) error {
+func (a *DestroyUTXO) Serialize(w io.Writer,version byte) error {
 	return nil
 }
 
-func (a *DestroyUTXO) Deserialize(r io.Reader) error {
+func (a *DestroyUTXO) Deserialize(r io.Reader,version byte) error {
 	return nil
 }

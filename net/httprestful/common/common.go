@@ -62,6 +62,34 @@ func GetBlockHash(cmd map[string]interface{}) map[string]interface{} {
 	resp["Result"] = ToHexString(hash.ToArrayReverse())
 	return resp
 }
+func GetTotalIssued(cmd map[string]interface{}) map[string]interface{} {
+	resp := ResponsePack(Err.SUCCESS)
+	assetid, ok := cmd["Assetid"].(string)
+	if !ok {
+		resp["Error"] = Err.INVALID_PARAMS
+		return resp
+	}
+	var assetHash Uint256
+
+	bys, err := HexToBytesReverse(assetid)
+	if err != nil {
+		resp["Error"] = Err.INVALID_PARAMS
+		return resp
+	}
+	if err := assetHash.Deserialize(bytes.NewReader(bys)); err != nil {
+		resp["Error"] = Err.INVALID_PARAMS
+		return resp
+	}
+	amount, err := ledger.DefaultLedger.Store.GetQuantityIssued(assetHash)
+	if err != nil {
+		resp["Error"] = Err.INVALID_PARAMS
+		return resp
+	}
+	val := float64(amount) / math.Pow(10, 8)
+	//valStr := strconv.FormatFloat(val, 'f', -1, 64)
+	resp["Result"] = val
+	return resp
+}
 func GetBlockInfo(block *ledger.Block) BlockInfo {
 	hash := block.Hash()
 	blockHead := &BlockHead{
@@ -409,8 +437,14 @@ func GetStateUpdate(cmd map[string]interface{}) map[string]interface{} {
 		resp["Error"] = Err.INVALID_PARAMS
 		return resp
 	}
-	fmt.Println(cmd, namespace, key)
-	//TODO get state from store
+	val, err := ledger.DefaultLedger.Store.GetState([]byte(namespace), []byte(key))
+	if err != nil {
+		fmt.Println("getstate err:", err)
+		resp["Error"] = Err.INVALID_PARAMS
+		resp["Result"] = err
+		return resp
+	}
+	resp["Result"] = string(val)
 	return resp
 }
 

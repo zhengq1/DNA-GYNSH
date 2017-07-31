@@ -39,6 +39,7 @@ const (
 	Api_Getblockbyhash     = "/api/v1/block/details/hash/:hash"
 	Api_Getblockheight     = "/api/v1/block/height"
 	Api_Getblockhash       = "/api/v1/block/hash/:height"
+	Api_GetTotalIssued     = "/api/v1/totalissued/:assetid"
 	Api_Gettransaction     = "/api/v1/transaction/:hash"
 	Api_Getasset           = "/api/v1/asset/:hash"
 	Api_GetBalanceByAddr   = "/api/v1/asset/balances/:addr"
@@ -132,6 +133,7 @@ func (rt *restServer) registryMethod() {
 		Api_Getblockbyhash:     {name: "getblockbyhash", handler: GetBlockByHash},
 		Api_Getblockheight:     {name: "getblockheight", handler: GetBlockHeight},
 		Api_Getblockhash:       {name: "getblockhash", handler: GetBlockHash},
+		Api_GetTotalIssued:     {name: "gettotalissued", handler: GetTotalIssued},
 		Api_Gettransaction:     {name: "gettransaction", handler: GetTransactionByHash},
 		Api_Getasset:           {name: "getasset", handler: GetAssetByHash},
 		Api_GetContract:        {name: "getcontract", handler: GetContract},
@@ -174,6 +176,8 @@ func (rt *restServer) getPath(url string) string {
 		return Api_Getblockhash
 	} else if strings.Contains(url, strings.TrimRight(Api_Getblockbyhash, ":hash")) {
 		return Api_Getblockbyhash
+	} else if strings.Contains(url, strings.TrimRight(Api_GetTotalIssued, ":assetid")) {
+		return Api_GetTotalIssued
 	} else if strings.Contains(url, strings.TrimRight(Api_Gettransaction, ":hash")) {
 		return Api_Gettransaction
 	} else if strings.Contains(url, strings.TrimRight(Api_GetContract, ":hash")) {
@@ -209,6 +213,9 @@ func (rt *restServer) getParams(r *http.Request, url string, req map[string]inte
 		break
 	case Api_Getblockhash:
 		req["Height"] = getParam(r, "height")
+		break
+	case Api_GetTotalIssued:
+		req["Assetid"] = getParam(r, "assetid")
 		break
 	case Api_Gettransaction:
 		req["Hash"] = getParam(r, "hash")

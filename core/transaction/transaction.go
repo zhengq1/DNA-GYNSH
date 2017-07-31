@@ -28,6 +28,7 @@ const (
 	RegisterAsset  TransactionType = 0x40
 	TransferAsset  TransactionType = 0x80
 	Record         TransactionType = 0x81
+	StateUpdate    TransactionType = 0x90
 	DeployCode     TransactionType = 0xd0
 	DataFile       TransactionType = 0x12
 	DestroyUTXO    TransactionType = 0x18
@@ -201,6 +202,8 @@ func (tx *Transaction) DeserializeUnsignedWithoutType(r io.Reader) error {
 		tx.Payload = new(payload.PrivacyPayload)
 	case DataFile:
 		tx.Payload = new(payload.DataFile)
+	case StateUpdate:
+		tx.Payload = new(payload.StateUpdate)
 	case DestroyUTXO:
 		tx.Payload = new(payload.DestroyUTXO)
 	default:
@@ -339,8 +342,20 @@ func (tx *Transaction) GetProgramHashes() ([]Uint160, error) {
 			return nil, NewDetailErr(err, ErrNoCode, "[Transaction], GetProgramHashes ToCodeHash failed.")
 		}
 		hashs = append(hashs, astHash)
+	case StateUpdate:
+		updater := tx.Payload.(*payload.StateUpdate).Updater
+		signatureRedeemScript, err := contract.CreateSignatureRedeemScript(updater)
+		if err != nil {
+			return nil, NewDetailErr(err, ErrNoCode, "[Transaction], StateUpdate GetProgramHashes CreateSignatureRedeemScript failed.")
+		}
+
+		astHash, err := ToCodeHash(signatureRedeemScript)
+		if err != nil {
+			return nil, NewDetailErr(err, ErrNoCode, "[Transaction], StateUpdate GetProgramHashes ToCodeHash failed.")
+		}
+		hashs = append(hashs, astHash)
 	case DestroyUTXO:
-		inputs,err:= tx.GetMergedAssetIDValueFromReference()
+		inputs, err := tx.GetMergedAssetIDValueFromReference()
 		if err != nil {
 			return nil, NewDetailErr(err, ErrNoCode, "[Transaction], GetTransactionInputs failed.")
 		}

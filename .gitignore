@@ -12,12 +12,10 @@ GoOnchain.iml
 .DS_Store
 *.orig
 *.rej
-Log
 vendor/*
 Chain/*
 /core/*/*_test.go
 /core/*/*/*_test.go
 /config/*
-node
 nodectl
 cscope*

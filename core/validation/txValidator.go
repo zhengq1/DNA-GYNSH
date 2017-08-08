@@ -261,6 +261,7 @@ func CheckTransactionPayload(Tx *tx.Transaction) error {
 	case *payload.DeployCode:
 	case *payload.DataFile:
 	case *payload.StateUpdate:
+	case *payload.StateUpdater:
 	case *payload.DestroyUTXO:
 		if len(Tx.Outputs) > 0 {
 			return errors.New("[CheckTransactionPayload],invalid transaction outputs.")

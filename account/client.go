@@ -564,19 +564,30 @@ func GetBookKeepers() []*crypto.PubKey {
 	return pubKeys
 }
 
-func GetStateUpdater() []*crypto.PubKey {
-	var pubKeys = []*crypto.PubKey{}
-	for _, key := range config.Parameters.StateUpdater {
-		pubKey := []byte(key)
-		pubKey, err := hex.DecodeString(key)
-		// TODO Convert the key string to byte
-		k, err := crypto.DecodePoint(pubKey)
+func GetStateUpdater() map[crypto.PubKey][]string {
+	conf := config.Parameters.StateUpdater
+	stateUpdaters := make(map[crypto.PubKey][]string, len(conf))
+	for pubkeyStr, namespaceStr := range conf {
+		data := []byte(pubkeyStr)
+		data, err := hex.DecodeString(pubkeyStr)
 		if err != nil {
-			log.Error("Incorrectly book keepers key")
-			return nil
+			log.Errorf("GetStateUpdater hex.DecodeString pubkey:%s error:%s", pubkeyStr, err)
+			continue
 		}
-		pubKeys = append(pubKeys, k)
+		pubkey, err := crypto.DecodePoint(data)
+		if err != nil {
+			log.Errorf("GetStateUpdater PubKey:%x DecodePoint error:%s", data, err)
+			continue
+		}
+		ns := strings.Split(namespaceStr, ",")
+		namespaces := make([]string, len(ns))
+		for _, namespace := range ns {
+			if namespace == "" {
+				continue
+			}
+			namespaces = append(namespaces, namespace)
+		}
+		stateUpdaters[*pubkey] = namespaces
 	}
-
-	return pubKeys
+	return stateUpdaters
 }

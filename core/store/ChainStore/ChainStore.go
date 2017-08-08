@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/big"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -56,6 +57,8 @@ type ChainStore struct {
 
 	currentBlockHeight uint32
 	storedHeaderCount  uint32
+
+	stateUpdaterMgr *StateUpdaterMgr
 }
 
 func NewStore(file string) (IStore, error) {
@@ -149,7 +152,7 @@ func (self *ChainStore) clearCache() {
 
 }
 
-func (bd *ChainStore) InitLedgerStoreWithGenesisBlock(genesisBlock *Block, defaultBookKeeper []*crypto.PubKey, defaultStateUpdater []*crypto.PubKey) (uint32, error) {
+func (bd *ChainStore) InitLedgerStoreWithGenesisBlock(genesisBlock *Block, defaultBookKeeper []*crypto.PubKey, defaultStateUpdater map[crypto.PubKey][]string) (uint32, error) {
 
 	hash := genesisBlock.Hash()
 	bd.headerIndex[0] = hash
@@ -306,17 +309,14 @@ func (bd *ChainStore) InitLedgerStoreWithGenesisBlock(genesisBlock *Block, defau
 		///////////////////////////////////////////////////
 		// process defaultStateUpdater
 		///////////////////////////////////////////////////
+		bd.stateUpdaterMgr = NewStateUpdaterMgr(defaultStateUpdater)
 		// StateUpdater key
 		suKey := bytes.NewBuffer(nil)
 		suKey.WriteByte(byte(CA_StateUpdater))
 
 		// StateUpdater value
 		suValue := bytes.NewBuffer(nil)
-		serialization.WriteVarUint(suValue, uint64(len(defaultStateUpdater)))
-		for k := 0; k < len(defaultStateUpdater); k++ {
-			defaultStateUpdater[k].Serialize(suValue)
-		}
-
+		bd.stateUpdaterMgr.Serialize(suValue)
 		// StateUpdater put value
 		bd.st.Put(suKey.Bytes(), suValue.Bytes())
 		///////////////////////////////////////////////////
@@ -702,7 +702,19 @@ func (self *ChainStore) GetBookKeeperList() ([]*crypto.PubKey, []*crypto.PubKey,
 	return currBookKeeper, nextBookKeeper, nil
 }
 
-func (self *ChainStore) GetStateUpdater() ([]*crypto.PubKey, error) {
+func (self *ChainStore) getStateUpdaterMgr() (*StateUpdaterMgr, error) {
+	if self.stateUpdaterMgr != nil {
+		return self.stateUpdaterMgr, nil
+	}
+	mgr, err := self.loadStateUpdaterMgr()
+	if err != nil {
+		return nil, err
+	}
+	self.stateUpdaterMgr = mgr
+	return mgr, nil
+}
+
+func (self *ChainStore) loadStateUpdaterMgr() (*StateUpdaterMgr, error) {
 	prefix := []byte{byte(CA_StateUpdater)}
 	suValue, err_get := self.st.Get(prefix)
 	if err_get != nil {
@@ -710,25 +722,22 @@ func (self *ChainStore) GetStateUpdater() ([]*crypto.PubKey, error) {
 	}
 
 	r := bytes.NewReader(suValue)
-
-	// read length
-	count, err := serialization.ReadVarUint(r, 0)
+	mgr := new(StateUpdaterMgr)
+	err := mgr.Deserialize(r)
 	if err != nil {
 		return nil, err
 	}
+	return mgr, nil
+}
 
-	var stateUpdater = make([]*crypto.PubKey, count)
-	for i := uint64(0); i < count; i++ {
-		bk := new(crypto.PubKey)
-		err := bk.DeSerialize(r)
-		if err != nil {
-			return nil, err
-		}
-
-		stateUpdater[i] = bk
+func (self *ChainStore) saveStateUpdater() error {
+	prefix := []byte{byte(CA_StateUpdater)}
+	buf := bytes.NewBuffer(nil)
+	err := self.stateUpdaterMgr.Serialize(buf)
+	if err != nil {
+		return err
 	}
-
-	return stateUpdater, nil
+	return self.st.BatchPut(prefix, buf.Bytes())
 }
 
 func (bd *ChainStore) persist(b *Block) error {
@@ -810,6 +819,7 @@ func (bd *ChainStore) persist(b *Block) error {
 	// save transactions to leveldb
 	nLen := len(b.Transactions)
 
+	needUpdateStateUpdater := false
 	for i := 0; i < nLen; i++ {
 
 		// now support RegisterAsset / IssueAsset / TransferAsset and Miner TX ONLY.
@@ -818,6 +828,7 @@ func (bd *ChainStore) persist(b *Block) error {
 			b.Transactions[i].TxType == tx.TransferAsset ||
 			b.Transactions[i].TxType == tx.Record ||
 			b.Transactions[i].TxType == tx.StateUpdate ||
+			b.Transactions[i].TxType == tx.StateUpdater ||
 			b.Transactions[i].TxType == tx.BookKeeper ||
 			b.Transactions[i].TxType == tx.PrivacyPayload ||
 			b.Transactions[i].TxType == tx.BookKeeping ||
@@ -874,28 +885,17 @@ func (bd *ChainStore) persist(b *Block) error {
 			//publicKey := b.Transactions[i].Programs[0].Parameter[1:34]
 			log.Trace(fmt.Sprintf("StateUpdate tx publickey: %x", su.Updater))
 
-			stateUpdater, err := bd.GetStateUpdater()
+			mgr, err := bd.getStateUpdaterMgr()
 			if err != nil {
-				return err
+				return fmt.Errorf("getStateUpdaterMgr error:%s", err)
 			}
-
-			findflag := false
-			for k := 0; k < len(stateUpdater); k++ {
-				log.Trace(fmt.Sprintf("StateUpdate updaterPublickey %d: %x %x", k, stateUpdater[k].X, stateUpdater[k].Y))
-
-				if su.Updater.X.Cmp(stateUpdater[k].X) == 0 && su.Updater.Y.Cmp(stateUpdater[k].Y) == 0 {
-					findflag = true
-					break
-				}
-			}
-
-			if !findflag {
-				return errors.New(fmt.Sprintf("[persist] stateUpdater publickey not found in store, reject. tx publickey: %x", su.Updater))
+			if !mgr.HasNamespace(su.Updater, string(su.Namespace)) {
+				return fmt.Errorf("[persist] stateUpdater publickey not found in store, reject. tx publickey: %x namespace:%s", su.Updater, su.Namespace)
 			}
 
 			// if not found in store, put value to the key.
 			// if found in store, rewrite value.
-			log.Trace(fmt.Sprintf("[persist] StateUpdate modify, key: %x, value:%x", stateKey, su.Value))
+			log.Trace(fmt.Sprintf("[persist] StateUpdate modify, key: %x, value:%x namespace:%s", stateKey, su.Value, su.Namespace))
 			bd.st.BatchPut(stateKey, su.Value)
 		}
 
@@ -1063,9 +1063,42 @@ func (bd *ChainStore) persist(b *Block) error {
 					nextBookKeeper = append(nextBookKeeper[:ind], nextBookKeeper[ind+1:]...)
 				}
 			}
-
 		}
 
+		if b.Transactions[i].TxType == tx.StateUpdater {
+			mgr, err := bd.getStateUpdaterMgr()
+			if err != nil {
+				return fmt.Errorf("getStateUpdaterMgr error:%s", err)
+			}
+			su := b.Transactions[i].Payload.(*payload.StateUpdater)
+			namespaceStr := string(su.Namespace)
+			namespaces := strings.Split(namespaceStr, ",")
+			updater := mgr.GetStateUpdater(su.PubKey)
+			if updater == nil {
+				updater = NewStateUpdater(su.PubKey, namespaces)
+				mgr.AddStateUpdater(updater)
+			}
+			switch su.Action {
+			case payload.StateUpdaterAction_ADD:
+				for _, namespace := range namespaces {
+					if namespace == "" {
+						continue
+					}
+					if updater.AddNamespace(namespace) {
+						needUpdateStateUpdater = true
+					}
+				}
+			case payload.StateUpdaterAction_SUB:
+				for _, namespace := range namespaces {
+					if namespace == "" {
+						continue
+					}
+					if updater.DelNamespace(namespace) {
+						needUpdateStateUpdater = true
+					}
+				}
+			}
+		}
 	}
 
 	if needUpdateBookKeeper {
@@ -1090,6 +1123,12 @@ func (bd *ChainStore) persist(b *Block) error {
 		bd.st.BatchPut(bkListKey.Bytes(), bkListValue.Bytes())
 
 		///////////////////////////////////////////////////////
+	}
+	if needUpdateStateUpdater {
+		err = bd.saveStateUpdater()
+		if err != nil {
+			return err
+		}
 	}
 	///////////////////////////////////////////////////////
 	//*/
@@ -1436,28 +1475,13 @@ func (bd *ChainStore) GetAccount(programHash Uint160) (*account.AccountState, er
 }
 
 func (bd *ChainStore) IsStateUpdaterVaild(Tx *tx.Transaction) bool {
-	su := Tx.Payload.(*payload.StateUpdate)
-
-	stateUpdater, err := bd.GetStateUpdater()
+	mgr, err := bd.getStateUpdaterMgr()
 	if err != nil {
+		log.Errorf("IsStateUpdaterVaild getStateUpdaterMgr error:%s", err)
 		return false
 	}
-
-	findflag := false
-	for k := 0; k < len(stateUpdater); k++ {
-		log.Trace(fmt.Sprintf("StateUpdate updaterPublickey %d: %x %x", k, stateUpdater[k].X, stateUpdater[k].Y))
-
-		if su.Updater.X.Cmp(stateUpdater[k].X) == 0 && su.Updater.Y.Cmp(stateUpdater[k].Y) == 0 {
-			findflag = true
-			break
-		}
-	}
-
-	if !findflag {
-		return false
-	}
-
-	return true
+	su := Tx.Payload.(*payload.StateUpdate)
+	return mgr.HasNamespace(su.Updater, string(su.Namespace))
 }
 
 func (bd *ChainStore) GetState(namespace []byte, key []byte) ([]byte, error) {

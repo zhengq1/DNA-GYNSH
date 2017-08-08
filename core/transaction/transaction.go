@@ -29,6 +29,7 @@ const (
 	TransferAsset  TransactionType = 0x80
 	Record         TransactionType = 0x81
 	StateUpdate    TransactionType = 0x90
+	StateUpdater   TransactionType = 0x91
 	DeployCode     TransactionType = 0xd0
 	DataFile       TransactionType = 0x12
 	DestroyUTXO    TransactionType = 0x18
@@ -204,6 +205,8 @@ func (tx *Transaction) DeserializeUnsignedWithoutType(r io.Reader) error {
 		tx.Payload = new(payload.DataFile)
 	case StateUpdate:
 		tx.Payload = new(payload.StateUpdate)
+	case StateUpdater:
+		tx.Payload = new(payload.StateUpdater)
 	case DestroyUTXO:
 		tx.Payload = new(payload.DestroyUTXO)
 	default:
@@ -330,6 +333,7 @@ func (tx *Transaction) GetProgramHashes() ([]Uint160, error) {
 	case TransferAsset:
 	case Record:
 	case BookKeeper:
+	case StateUpdater:
 	case PrivacyPayload:
 		issuer := tx.Payload.(*payload.PrivacyPayload).EncryptAttr.(*payload.EcdhAes256).FromPubkey
 		signatureRedeemScript, err := contract.CreateSignatureRedeemScript(issuer)

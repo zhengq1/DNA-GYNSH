@@ -13,7 +13,6 @@ import (
 
 var DefaultLedger *Ledger
 var StandbyBookKeepers []*crypto.PubKey
-var StateUpdater []*crypto.PubKey
 
 // Ledger - the struct for onchainDNA ledger
 type Ledger struct {

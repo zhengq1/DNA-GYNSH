@@ -57,6 +57,44 @@ func NewBookKeeperTransaction(pubKey *crypto.PubKey, isAdd bool, cert []byte) (*
 	}, nil
 }
 
+func NewStateUpdateTransaction(pubKey *crypto.PubKey, namespace, key, value []byte )(*Transaction, error){
+	stateUpdatePayload := &payload.StateUpdate{
+		Updater: pubKey,
+		Namespace:namespace,
+		Key: key,
+		Value: value,
+	}
+	return &Transaction{
+		TxType:        StateUpdate,
+		Payload:       stateUpdatePayload,
+		UTXOInputs:    []*UTXOTxInput{},
+		BalanceInputs: []*BalanceTxInput{},
+		Attributes:    []*TxAttribute{},
+		Programs:      []*program.Program{},
+	}, nil
+}
+
+func NewStateUpdaterTransaction(pubKey *crypto.PubKey, isAdd bool, namespaces, cert []byte) (*Transaction, error) {
+	action := payload.StateUpdaterAction_ADD
+	if !isAdd {
+		action = payload.StateUpdaterAction_SUB
+	}
+	stateUpdaterPayload := &payload.StateUpdater{
+		PubKey:    pubKey,
+		Namespace: namespaces,
+		Cert:      cert,
+		Action:    action,
+	}
+	return &Transaction{
+		TxType:        StateUpdater,
+		Payload:       stateUpdaterPayload,
+		UTXOInputs:    []*UTXOTxInput{},
+		BalanceInputs: []*BalanceTxInput{},
+		Attributes:    []*TxAttribute{},
+		Programs:      []*program.Program{},
+	}, nil
+}
+
 func NewIssueAssetTransaction(outputs []*TxOutput) (*Transaction, error) {
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))

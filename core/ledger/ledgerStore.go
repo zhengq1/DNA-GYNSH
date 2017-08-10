@@ -36,7 +36,7 @@ type ILedgerStore interface {
 	GetHeaderHashByHeight(height uint32) Uint256
 
 	GetBookKeeperList() ([]*crypto.PubKey, []*crypto.PubKey, error)
-	InitLedgerStoreWithGenesisBlock(genesisblock *Block, defaultBookKeeper []*crypto.PubKey, defaultStateUpdater []*crypto.PubKey) (uint32, error)
+	InitLedgerStoreWithGenesisBlock(genesisblock *Block, defaultBookKeeper []*crypto.PubKey, defaultStateUpdater map[crypto.PubKey][]string) (uint32, error)
 
 	GetQuantityIssued(assetid Uint256) (Fixed64, error)
 
@@ -46,7 +46,7 @@ type ILedgerStore interface {
 	GetUnspentsFromProgramHash(programHash Uint160) (map[Uint256][]*tx.UTXOUnspent, error)
 	GetAssets() map[Uint256]*Asset
 
-	GetStateUpdater() ([]*crypto.PubKey, error)
+	//GetStateUpdater() ([]*crypto.PubKey, error)
 	GetState(namespace []byte, key []byte) ([]byte, error)
 	IsStateUpdaterVaild(Tx *tx.Transaction) bool
 

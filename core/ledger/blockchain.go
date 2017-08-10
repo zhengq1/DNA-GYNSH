@@ -23,7 +23,7 @@ func NewBlockchain(height uint32) *Blockchain {
 	}
 }
 
-func NewBlockchainWithGenesisBlock(defaultBookKeeper []*crypto.PubKey, defaultStateUpdater []*crypto.PubKey) (*Blockchain, error) {
+func NewBlockchainWithGenesisBlock(defaultBookKeeper []*crypto.PubKey, defaultStateUpdater map[crypto.PubKey][]string) (*Blockchain, error) {
 	genesisBlock, err := GenesisBlockInit()
 	if err != nil {
 		return nil, NewDetailErr(err, ErrNoCode, "[Blockchain], NewBlockchainWithGenesisBlock failed.")
